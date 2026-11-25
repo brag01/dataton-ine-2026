@@ -1,9 +1,13 @@
 """Catálogo inicial de series del INE de Guatemala. Requiere pandas."""
 
-from .client import INEClient
 import unicodedata
+import warnings
+from typing import Literal
 
 import pandas as pd
+
+from .client import INEClient
+from .exceptions import INEAPIError
 
 
 _IPC = {
@@ -41,8 +45,8 @@ def _normalizar(texto):
                    if not unicodedata.combining(c))
 
 
-def buscar_serie(texto):
-    """Busca todos los términos en el catálogo local. Devuelve un DataFrame."""
+def buscar_serie(texto: str) -> pd.DataFrame:
+    """Busca términos en el catálogo local. Usa id_serie del resultado para cargar_serie."""
     if not isinstance(texto, str) or not texto.strip():
         raise ValueError("Escriba el nombre, sigla o identificador de una serie.")
     terminos = _normalizar(texto).split()
@@ -67,6 +71,15 @@ def _consultar(ficha, filtros, limite):
     return datos, datos.attrs["source"]
 
 
+def _validar_columnas(datos, ficha, requeridas):
+    faltantes = sorted(set(requeridas).difference(datos.columns))
+    if faltantes:
+        raise INEAPIError(
+            f"Faltan columnas para {ficha['id_serie']}: {', '.join(faltantes)}. "
+            f"Revise el esquema del recurso {ficha['recurso']} en el portal del INE."
+        )
+
+
 def _cargar_poblacion(municipio, sexo, año):
     if type(municipio) is not int or municipio < 101:
         raise ValueError("Indique el código municipal completo, por ejemplo municipio=101.")
@@ -77,14 +90,16 @@ def _cargar_poblacion(municipio, sexo, año):
     filtros = {"DEPTO": municipio // 100, "MUPIO": municipio, "SEXO": sexo}
     datos, fuente = _consultar(_POBLACION, filtros, 72)
     if datos.empty:
-        raise ValueError(f"Sin registros para el municipio {municipio} y sexo {sexo}.")
+        raise ValueError(f"Sin registros para el municipio {municipio} y sexo {sexo}. "
+                         "Verifique el código con buscar_municipio() y revise el sexo solicitado.")
+    años = [año] if año is not None else range(2015, 2031)
+    _validar_columnas(datos, _POBLACION, [*filtros, "EDAD", *(f"{p}.0" for p in años)])
     for campo, valor in filtros.items():
         if not pd.to_numeric(datos[campo]).eq(valor).all():
             raise ValueError("La API devolvió datos fuera del filtro municipal.")
     edades = pd.to_numeric(datos["EDAD"])
     if len(edades) != 71 or set(edades) != set(range(71)):
         raise ValueError("La API devolvió categorías de edad incompletas o duplicadas.")
-    años = [año] if año is not None else range(2015, 2031)
     valores = []
     for periodo in años:
         columna = pd.to_numeric(datos[f"{periodo}.0"], errors="raise")
@@ -100,11 +115,29 @@ def _cargar_poblacion(municipio, sexo, año):
     return tabla
 
 
-def cargar_serie(id_serie, año=None, *, municipio=None, sexo=None):
-    """Carga IPC por año o población por código municipal y sexo (0, 1, 2)."""
+def cargar_serie(
+    id_serie: Literal["ipc_nacional_mensual", "poblacion_municipal_anual"],
+    año: int | None = None,
+    *,
+    municipio: int | None = None,
+    sexo: Literal[0, 1, 2] | None = None,
+) -> pd.DataFrame:
+    """Devuelve periodo y valor, con procedencia accesible mediante mostrar_fuente().
+
+    cargar_serie("ipc_nacional_mensual", año=2026) devuelve los meses disponibles
+    como períodos de pandas y el índice en puntos (base 2024 = 100). Emite
+    UserWarning si faltan todas las observaciones o se observa el caso documentado
+    de precisión. La tabla vacía conserva su fuente.
+
+    cargar_serie("poblacion_municipal_anual", municipio=1202) devuelve años y
+    personas al 30 de junio. El año opcional selecciona uno de 2015 a 2030.
+    Sexo: 0 (ambos, por defecto), 1 (hombres), 2 (mujeres). Si faltan filas
+    o edades para calcular el total municipal, lanza ValueError.
+    """
     ficha = next((f for f in _CATALOGO if f["id_serie"] == id_serie), None)
     if ficha is None:
-        raise ValueError(f"Serie desconocida: {id_serie}")
+        opciones = ", ".join(f["id_serie"] for f in _CATALOGO)
+        raise ValueError(f"Serie desconocida: {id_serie!r}. Use uno de estos identificadores: {opciones}.")
     if ficha is _POBLACION:
         return _cargar_poblacion(municipio, 0 if sexo is None else sexo, año)
     if municipio is not None or sexo is not None:
@@ -113,6 +146,8 @@ def cargar_serie(id_serie, año=None, *, municipio=None, sexo=None):
         raise ValueError("El año debe ser un entero de cuatro dígitos.")
     filtros = {"Año": año, ficha["campo_filtro"]: ficha["valor_filtro"]}
     datos, fuente = _consultar(ficha, filtros, 13)
+    if len(datos.index):
+        _validar_columnas(datos, ficha, [*filtros, "Mes", ficha["campo_valor"]])
     registros = datos.to_dict("records")
     if len(registros) > 12:
         raise ValueError("La API devolvió más de doce registros para una serie mensual.")
@@ -126,17 +161,29 @@ def cargar_serie(id_serie, año=None, *, municipio=None, sexo=None):
         periodos.append(pd.Period(year=año, month=mes, freq="M"))
         valores.append(registro[ficha["campo_valor"]])
     tabla = pd.DataFrame({"periodo": pd.PeriodIndex(periodos, freq="M"),
-                          "valor": pd.to_numeric(valores, errors="raise")})
+                          "valor": pd.to_numeric(valores, errors="coerce")})
+    valor = tabla["valor"]
+    invalidos = valor.isna() | (valor < 0) | (valor == float("inf"))
+    if invalidos.any():
+        periodo = tabla.loc[invalidos, "periodo"].iloc[0]
+        raise ValueError(f"IPC inválido para {periodo}: se esperaba un valor finito y no negativo. "
+                         f"Revise el campo República del recurso {ficha['recurso']}.")
     if tabla["periodo"].duplicated().any():
         raise ValueError("La API devolvió meses duplicados.")
     tabla = tabla.sort_values("periodo", ignore_index=True)
     tabla.attrs.update(id_serie=id_serie, recurso=ficha["recurso"], consulta=fuente["consultas"][0], **fuente,
                        periodo_solicitado=año, operacion="Lectura mensual del campo República",
                        base=ficha["base"], unidad=ficha["unidad"], nota=ficha["nota"])
+    if tabla.empty:
+        warnings.warn(f"Sin observaciones de IPC para {año}. Revise el año y la fuente "
+                      "antes de calcular un indicador.", UserWarning, stacklevel=2)
+    elif año == 2026 and ((tabla["periodo"].dt.month <= 10) & (tabla["valor"] % 1 == 0)).any():
+        warnings.warn(f"{ficha['nota']} Se conserva el valor recibido. "
+                      "Consulte la publicación del INE si necesita decimales.", UserWarning, stacklevel=2)
     return tabla
 
 
-def mostrar_fuente(tabla):
+def mostrar_fuente(tabla: pd.DataFrame) -> pd.DataFrame:
     """Devuelve la procedencia registrada al cargar la serie como tabla de una fila."""
     if not isinstance(tabla, pd.DataFrame):
         raise TypeError("Se esperaba una tabla de pandas obtenida con cargar_serie().")
@@ -489,8 +536,8 @@ _MUNICIPIOS = [(101, 'Guatemala', 'Guatemala'),
  (2217, 'Quesada', 'Jutiapa')]
 
 
-def buscar_municipio(nombre):
-    """Busca por nombre completo o parcial, sin distinguir tildes ni mayúsculas."""
+def buscar_municipio(nombre: str) -> pd.DataFrame:
+    """Devuelve codigo, municipio y departamento. Usa el departamento para resolver homónimos."""
     if not isinstance(nombre, str) or not nombre.strip():
         raise ValueError("Escriba el nombre de un municipio.")
 
