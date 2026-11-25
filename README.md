@@ -1,4 +1,6 @@
-# ine_gt 2.0.0
+# ine_gt 2.0.1
+
+git init
 
 Consulta el IPC nacional mensual y la población municipal anual de Guatemala desde Python. El catálogo de 340 municipios viene incluido. Las cifras se obtienen de la API del INE al ejecutar la consulta.
 
