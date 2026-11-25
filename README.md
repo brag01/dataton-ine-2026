@@ -51,3 +51,7 @@ La búsqueda del portal devuelve conjuntos y recursos. La búsqueda local devuel
 ## Pruebas
 
 Ejecuta `python -m pip install -e '.[dev]'` y `python -m pytest -q`. Las pruebas locales usan respuestas simuladas para funcionar sin conexión. Los ejemplos del README requieren acceso a datos.ine.gob.gt.
+
+## Prueba de GitHub
+
+Cambio de prueba realizado desde Codex el 25 de noviembre de 2026 para verificar el flujo de commit y push a GitHub.
