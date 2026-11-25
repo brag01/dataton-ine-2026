@@ -1,0 +1,79 @@
+
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Distribution and packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+*.whl
+pip-wheel-metadata/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Static analysis and linting
+.mypy_cache/
+.dmypy.json
+.ruff_cache/
+.pyright/
+.pytype/
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+.ipython/
+profile_default/
+
+# Environment variables and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.pypirc
+
+# IDE and editor settings
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+
+# Windows and macOS system files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.temp
+
+# Local data and generated outputs
+/data/raw/
+/data/processed/
+/outputs/
+/cache/
+
+# Documentation build
+docs/_build/
+site/
