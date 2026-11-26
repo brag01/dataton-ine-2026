@@ -6,6 +6,17 @@ import ine_gt as ine
 from test_persona import verificar_cita
 
 
+def test_vista_previa_en_portal():
+    recurso = ine.buscar_serie("ipc").recurso.item()
+    with ine.INEClient() as cliente:
+        previa = cliente.vista_previa(recurso, filas=2)
+    assert previa.attrs["resource_id"] == recurso
+    assert not previa.empty and previa.campo.is_unique
+    assert previa.tipo.notna().all()
+    assert previa.ejemplos.map(len).eq(2).all()
+    print(f"Vista previa en vivo: {len(previa)} campos, {previa.attrs['fecha_consulta_utc']}.")
+
+
 def test_catalogo_y_muestra():
     with ine.INEClient() as cliente:
         conjuntos = cliente.buscar_conjuntos("IPC")

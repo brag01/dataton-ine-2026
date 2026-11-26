@@ -19,6 +19,12 @@ Run commands from the repository root with the editable package installed in the
 | Persona | `.\.venv\Scripts\python.exe harness.py persona` | Verify the analyst journey below with simulated CKAN data. |
 | Live | `.\.venv\Scripts\python.exe harness.py live` | Search the actual catalog, read one raw IPC row, load both curated series and check the municipal citation. Prints observed figures, UTC timestamps and query URLs. |
 
+## Rehearse the live preview
+
+For the preview rehearsal, run `.\.venv\Scripts\python.exe -m pytest -q -s -p no:cacheprovider tests/live_portal.py::test_vista_previa_en_portal` from the presentation computer and network. This test fails if the real preview fails.
+
+For the presentation, run `.\.venv\Scripts\python.exe examples/demo_vista_previa.py` once during rehearsal and again on stage. A successful call saves a timestamped two-row preview under `outputs/` on that computer. On a portal error the script displays the saved result as a capture, or the local series catalog if there is no capture. A fallback demonstrates offline behavior and does not count as a successful live test.
+
 ## First persona: an analyst preparing a citable figure
 
 An analyst knows a municipality's name but sees two matches. They select the department, load population for 2026, and put the period, value, and source in a report. The test in `tests/test_persona.py` checks these steps without network access. A failure means the human workflow or the statistical result is broken, even if individual helper tests pass.
