@@ -28,6 +28,25 @@ def test_limit_invalido():
             client.datos("abc", limit=0)
 
 
+def test_vista_previa_refresca_esquema_y_conserva_campos_sin_datos(monkeypatch):
+    respuestas = iter([
+        {"fields": [{"id": "Edad", "type": "int4"}], "records": [{"Edad": 9}, {"Edad": None}]},
+        {"fields": [{"id": "Grupo", "type": "text"}], "records": []},
+    ])
+    def consultar(name, params):
+        assert name == "datastore_search"
+        assert params == {"resource_id": "censo", "limit": 2, "include_total": "false"}
+        return next(respuestas)
+    with INEClient() as cliente:
+        monkeypatch.setattr(cliente, "action", consultar)
+        primera = cliente.vista_previa("censo", filas=2)
+        assert primera.to_dict("records") == [{"campo": "Edad", "tipo": "int4", "ejemplos": [9, None]}]
+        segunda = cliente.vista_previa("censo", filas=2)
+        assert segunda.to_dict("records") == [{"campo": "Grupo", "tipo": "text", "ejemplos": []}]
+        with pytest.raises(ValueError, match="entre 1 y 10"):
+            cliente.vista_previa("censo", filas=1000)
+
+
 def test_respuesta_api_invalida(monkeypatch):
     class FakeResponse:
         def raise_for_status(self):

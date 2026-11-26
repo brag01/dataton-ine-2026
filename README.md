@@ -74,7 +74,18 @@ with ine.INEClient() as cliente:
 
 Usa `cliente.catalogo("ipc")` para filtrar por tema. Para explorar censos, usa `cliente.buscar_conjuntos("censo")`, elige un conjunto y llama a `cliente.recursos(conjunto_id)`. Con el ID de un recurso que tenga `datastore_active=True`, `cliente.campos(resource_id)` muestra sus columnas y tipos antes de descargar filas.
 
-Para explorar conjuntos adicionales, usa `INEClient`. Busca un tema y selecciona el conjunto por su título:
+Antes de descargar un recurso, puedes ver las variables que publica **en este momento**. Por ejemplo, para el recurso del IPC:
+
+```python
+import ine_gt as ine
+recurso = ine.buscar_serie("ipc").recurso.item()
+with ine.INEClient() as cliente:
+    print(cliente.vista_previa(recurso, filas=2).to_string(index=False))
+```
+
+La tabla devuelve una fila por campo con su nombre, tipo y valores de ejemplo. La vista previa pide tres registros por defecto (hasta diez) en una sola consulta. Los ejemplos pueden contener nulos y no enumeran todas las categorías posibles. Si el INE cambia el esquema, la siguiente consulta muestra los campos que publique entonces. Usa los nombres devueltos antes de preparar filtros.
+
+Para buscar por título:
 
 ```python
 with ine.INEClient() as cliente:

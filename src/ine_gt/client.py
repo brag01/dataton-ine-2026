@@ -85,16 +85,38 @@ class INEClient:
             for r in package.get("resources", [])
         ])
 
-    def campos(self, resource_id: str) -> pd.DataFrame:
-        """Devuelve campo y tipo de cada columna de un recurso DataStore activo, sin pedir filas."""
-        result = self.action("datastore_search", {"resource_id": resource_id, "limit": 0,
+    def _consultar_campos(self, resource_id: str, filas: int) -> tuple[pd.DataFrame, dict]:
+        result = self.action("datastore_search", {"resource_id": resource_id, "limit": filas,
                                                   "include_total": "false"})
         fields = result.get("fields") if isinstance(result, dict) else None
         if not isinstance(fields, list) or any(
             not isinstance(f, dict) or not f.get("id") or not f.get("type") for f in fields
         ):
             raise INEAPIError(f"Esquema incompleto para {resource_id}. Revise que DataStore esté activo.")
-        return pd.DataFrame([(f["id"], f["type"]) for f in fields], columns=["campo", "tipo"])
+        campos = pd.DataFrame([(f["id"], f["type"]) for f in fields], columns=["campo", "tipo"])
+        return campos, result
+
+    def campos(self, resource_id: str) -> pd.DataFrame:
+        """Devuelve campo y tipo de cada columna de un recurso DataStore activo, sin pedir filas."""
+        campos, _ = self._consultar_campos(resource_id, 0)
+        return campos
+
+    def vista_previa(self, resource_id: str, filas: int = 3) -> pd.DataFrame:
+        """Consulta las variables actuales de un recurso DataStore y hasta 10 filas de ejemplo.
+
+        Devuelve una fila por variable con campo, tipo y ejemplos. Los ejemplos siguen
+        el orden de las filas recibidas y conservan los nulos. Un recurso vacío
+        conserva sus campos con listas vacías. Cada llamada vuelve a consultar al INE.
+        """
+        if type(filas) is not int or not 1 <= filas <= 10:
+            raise ValueError("Use filas entre 1 y 10. Para ver solo los nombres y tipos, use campos().")
+        campos, result = self._consultar_campos(resource_id, filas)
+        registros = result.get("records")
+        if not isinstance(registros, list) or not all(isinstance(r, dict) for r in registros):
+            raise INEAPIError(f"Muestra inválida para {resource_id}. Revise el recurso en DataStore.")
+        campos["ejemplos"] = [[r.get(nombre) for r in registros[:filas]] for nombre in campos["campo"]]
+        campos.attrs.update(resource_id=resource_id, fecha_consulta_utc=datetime.now(timezone.utc).isoformat())
+        return campos
 
     def datos(self, resource_id: str, limit: int = 1000, max_rows: int | None = None,
               *, filters: dict[str, Any] | None = None) -> pd.DataFrame:
