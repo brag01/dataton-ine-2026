@@ -13,7 +13,9 @@ from .exceptions import INEAPIError
 
 
 class INEClient:
-    def __init__(self, base_url: str = "https://datos.ine.gob.gt/api/3/action", timeout: int = 30):
+    """Consulta el catálogo CKAN y sus recursos DataStore. Usa with para cerrar la sesión."""
+
+    def __init__(self, base_url: str = "https://datos.ine.gob.gt/api/3/action", timeout: int = 30) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.session = requests.Session()
@@ -29,6 +31,7 @@ class INEClient:
         self.close()
 
     def action(self, name: str, params: dict[str, Any] | None = None) -> Any:
+        """Devuelve el resultado JSON de la acción CKAN o lanza INEAPIError."""
         try:
             response = self.session.get(
                 f"{self.base_url}/{name}", params=params, timeout=self.timeout
@@ -40,9 +43,12 @@ class INEClient:
         if not isinstance(payload, dict) or not payload.get("success"):
             error = payload.get("error") if isinstance(payload, dict) else payload
             raise INEAPIError(f"La API rechazó '{name}': {error}")
+        if "result" not in payload:
+            raise INEAPIError(f"La respuesta de '{name}' carece de 'result'. Revise la respuesta del portal.")
         return payload["result"]
 
     def buscar_conjuntos(self, texto: str, rows: int = 100) -> pd.DataFrame:
+        """Busca conjuntos en el portal. rows fija el tamaño de página. Usa id con recursos()."""
         if rows <= 0:
             raise ValueError("rows debe ser positivo")
         items = []
@@ -61,6 +67,7 @@ class INEClient:
         ])
 
     def recursos(self, conjunto_id: str) -> pd.DataFrame:
+        """Lista los recursos del conjunto. Selecciona datastore_active para consultar con datos()."""
         package = self.action("package_show", {"id": conjunto_id})
         return pd.DataFrame([
             {"id": r.get("id"), "nombre": r.get("name"), "formato": r.get("format"),
@@ -71,6 +78,10 @@ class INEClient:
 
     def datos(self, resource_id: str, limit: int = 1000, max_rows: int | None = None,
               *, filters: dict[str, Any] | None = None) -> pd.DataFrame:
+        """Lee filas de DataStore. limit fija la página y max_rows el total de filas.
+
+        filters usa los nombres de columna del recurso. La procedencia queda en attrs["source"].
+        """
         if limit <= 0 or (max_rows is not None and max_rows < 0):
             raise ValueError("limit debe ser positivo y max_rows no negativo")
         consultas = []
@@ -85,7 +96,9 @@ class INEClient:
                 params["filters"] = json.dumps(filters)
             consultas.append(f"{self.base_url}/datastore_search?{urlencode(params)}")
             result = self.action("datastore_search", params)
-            batch = result.get("records", [])
+            if not isinstance(result, dict) or not isinstance(result.get("records"), list):
+                raise INEAPIError(f"DataStore omitió la lista 'records'. Revise el recurso {resource_id}.")
+            batch = result["records"]
             records.extend(batch)
             offset += len(batch)
             if not batch or ("total" in result and offset >= result["total"]):
