@@ -1,63 +1,13 @@
 """Catálogo inicial de series del INE de Guatemala. Requiere pandas."""
 
-import unicodedata
 import warnings
 from typing import Literal
 
 import pandas as pd
 
+from .catalogo import _CATALOGO, _POBLACION, _normalizar, buscar_serie as buscar_serie
 from .client import INEClient
 from .exceptions import INEAPIError
-
-
-_IPC = {
-    "id_serie": "ipc_nacional_mensual",
-    "nombre": "Índice de Precios al Consumidor (IPC)",
-    "frecuencia": "Mensual",
-    "cobertura": "Nacional",
-    "base": "Año 2024 = 100",
-    "unidad": "Puntos de índice",
-    "recurso": "4b1c485c-78cb-4a0e-b11e-39306a8647f1",
-    "campo_filtro": "Descripción",
-    "valor_filtro": "ÍNDICE GENERAL",
-    "campo_valor": "República",
-    "fuente": "https://datos.ine.gob.gt/api/3/action/datastore_search",
-    "nota": "Enero a octubre de 2026: la API devolvió la parte entera "
-            "del índice nacional. Octubre: 106 en la API y 106.24 publicado.",
-}
-_POBLACION = {
-    "id_serie": "poblacion_municipal_anual",
-    "nombre": "Población municipal estimada y proyectada",
-    "frecuencia": "Anual",
-    "cobertura": "Municipal",
-    "periodo": "2015–2030",
-    "fecha_referencia": "30 de junio de cada año",
-    "unidad": "Personas",
-    "recurso": "56b97bc0-5624-408d-a136-3931dd05610a",
-    "fuente": _IPC["fuente"],
-    "nota": "Población por municipio, sexo y edad. SEXO=0 corresponde a ambos sexos.",
-}
-_CATALOGO = (_IPC, _POBLACION)
-
-
-def _normalizar(texto):
-    return "".join(c for c in unicodedata.normalize("NFD", texto.casefold())
-                   if not unicodedata.combining(c))
-
-
-def buscar_serie(texto: str) -> pd.DataFrame:
-    """Busca términos en el catálogo local. Usa id_serie del resultado para cargar_serie."""
-    if not isinstance(texto, str) or not texto.strip():
-        raise ValueError("Escriba el nombre, sigla o identificador de una serie.")
-    terminos = _normalizar(texto).split()
-    coincidencias = []
-    for ficha in _CATALOGO:
-        descripcion = " ".join(ficha.get(campo, "") for campo in
-                               ("id_serie", "nombre", "frecuencia", "cobertura", "base"))
-        indice = _normalizar(descripcion)
-        if all(termino in indice for termino in terminos):
-            coincidencias.append(ficha)
-    return pd.DataFrame(coincidencias, columns=[*_IPC, "periodo", "fecha_referencia"])
 
 
 _MESES = {nombre: numero for numero, nombre in enumerate(

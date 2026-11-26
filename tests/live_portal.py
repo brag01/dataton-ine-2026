@@ -10,7 +10,8 @@ def test_catalogo_y_muestra():
     with ine.INEClient() as cliente:
         conjuntos = cliente.buscar_conjuntos("IPC")
         assert not conjuntos.empty
-        recurso = ine.buscar_serie("IPC").recurso.item()
+        serie = cliente.catalogo("IPC").id_serie.item()
+        recurso = ine.buscar_serie(serie).recurso.item()
         for conjunto in conjuntos.itertuples():
             recursos = cliente.recursos(conjunto.id)
             if not recursos.empty and recurso in recursos.id.values:
@@ -20,6 +21,7 @@ def test_catalogo_y_muestra():
             raise AssertionError(f"Recurso IPC {recurso} ausente del catálogo consultado")
         muestra = cliente.datos(recurso, max_rows=1)
         assert len(muestra) == 1 and "República" in muestra
+        assert set(muestra.columns) <= set(cliente.campos(recurso).campo)
         print(f"Catálogo IPC: {len(conjuntos)} conjuntos. Recurso: {recurso}. Muestra: 1 fila.")
 
 

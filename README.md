@@ -65,6 +65,15 @@ Ambas series devuelven un `pandas.DataFrame` con las columnas `periodo` y `valor
 
 ## Buscar otros datos en el portal
 
+Para descubrir las series que puedes cargar, consulta el catálogo local. Funciona sin conexión:
+
+```python
+with ine.INEClient() as cliente:
+    print(cliente.catalogo()[["id_serie", "argumentos", "ejemplo"]])
+```
+
+Usa `cliente.catalogo("ipc")` para filtrar por tema. Para explorar censos, usa `cliente.buscar_conjuntos("censo")`, elige un conjunto y llama a `cliente.recursos(conjunto_id)`. Con el ID de un recurso que tenga `datastore_active=True`, `cliente.campos(resource_id)` muestra sus columnas y tipos antes de descargar filas.
+
 Para explorar conjuntos adicionales, usa `INEClient`. Busca un tema y selecciona el conjunto por su título:
 
 ```python

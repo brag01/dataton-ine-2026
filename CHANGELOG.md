@@ -2,6 +2,8 @@
 
 ## Pendiente de publicación
 
+- `INEClient.catalogo()` permite descubrir las series disponibles y cómo cargarlas. `INEClient.campos(resource_id)` consulta los nombres y tipos de las columnas de un recurso DataStore.
+
 - El IPC emite un aviso si la consulta está vacía o si devuelve valores enteros en el período documentado de enero a octubre de 2026. El resultado conserva el valor recibido y la fuente.
 - Un valor de IPC ausente, no numérico, infinito o negativo genera un error que identifica el período. Si falta una columna de una serie, el mensaje identifica el recurso que se debe revisar.
 - El manual incluye los dos identificadores admitidos, la búsqueda de municipios por departamento y los datos necesarios para citar una cifra.

@@ -2,6 +2,26 @@ import pytest
 from ine_gt import INEClient, INEAPIError
 
 
+def test_descubrir_series():
+    with INEClient() as client:
+        catalogo = client.catalogo()
+        assert set(catalogo.id_serie) == {"ipc_nacional_mensual", "poblacion_municipal_anual"}
+        assert 'año=2026' in client.catalogo("ÍPC").ejemplo.item()
+        assert client.catalogo("censo").empty
+
+
+def test_campos_sin_descargar_filas(monkeypatch):
+    def esquema(name, params):
+        assert name == "datastore_search" and params["limit"] == 0
+        return {"fields": [{"id": "Año", "type": "int4"}], "records": []}
+    with INEClient() as client:
+        monkeypatch.setattr(client, "action", esquema)
+        assert client.campos("recurso").to_dict("records") == [{"campo": "Año", "tipo": "int4"}]
+        monkeypatch.setattr(client, "action", lambda *args: {"records": []})
+        with pytest.raises(INEAPIError, match="Esquema incompleto"):
+            client.campos("recurso")
+
+
 def test_limit_invalido():
     with INEClient() as client:
         with pytest.raises(ValueError):

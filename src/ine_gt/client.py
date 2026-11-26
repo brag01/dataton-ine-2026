@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 import requests
 import pandas as pd
 
+from .catalogo import _catalogo_series, buscar_serie
 from .exceptions import INEAPIError
 
 
@@ -23,6 +24,14 @@ class INEClient:
 
     def close(self) -> None:
         self.session.close()
+
+    def catalogo(self, tema: str | None = None) -> pd.DataFrame:
+        """Lista series locales con su ID, unidad, argumentos y ejemplo para cargar_serie.
+
+        Omite tema para ver todas. Para buscar otros temas en el portal usa buscar_conjuntos.
+        """
+        fichas = _catalogo_series() if tema is None else buscar_serie(tema)
+        return fichas[["id_serie", "nombre", "frecuencia", "unidad", "argumentos", "ejemplo"]]
 
     def __enter__(self) -> "INEClient":
         return self
@@ -75,6 +84,17 @@ class INEClient:
              "ultima_modificacion": r.get("last_modified")}
             for r in package.get("resources", [])
         ])
+
+    def campos(self, resource_id: str) -> pd.DataFrame:
+        """Devuelve campo y tipo de cada columna de un recurso DataStore activo, sin pedir filas."""
+        result = self.action("datastore_search", {"resource_id": resource_id, "limit": 0,
+                                                  "include_total": "false"})
+        fields = result.get("fields") if isinstance(result, dict) else None
+        if not isinstance(fields, list) or any(
+            not isinstance(f, dict) or not f.get("id") or not f.get("type") for f in fields
+        ):
+            raise INEAPIError(f"Esquema incompleto para {resource_id}. Revise que DataStore esté activo.")
+        return pd.DataFrame([(f["id"], f["type"]) for f in fields], columns=["campo", "tipo"])
 
     def datos(self, resource_id: str, limit: int = 1000, max_rows: int | None = None,
               *, filters: dict[str, Any] | None = None) -> pd.DataFrame:
